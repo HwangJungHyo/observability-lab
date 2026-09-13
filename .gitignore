@@ -1,0 +1,15 @@
+
+# Credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Temporary files
+*.bak
+*.log
+
+# Local runtime data
+/prometheus-data/
+/grafana-data/

@@ -350,6 +350,10 @@ docker image inspect grafana/grafana:latest --format '{{json .RepoDigests}}'
 
 위 목록은 검증 절차입니다. 이 README 작성 과정에서 별도 Windows PC의 실행 검증을 수행한 것은 아닙니다.
 
+## 실험 기록
+
+- [2026-09-14 Windows CPU 부하 및 메트릭 수집 검증](docs/experiments/2026-09-14-windows-cpu-load.md): 작업 4개·90초 실행, CPU 상승·하락 및 화면상 up=1 유지 확인. 부하 전 수준으로의 완전 복귀는 미확인.
+
 ## 공식 문서
 
 - [Docker Desktop Windows 설치](https://docs.docker.com/desktop/setup/install/windows-install/)

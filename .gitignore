@@ -13,3 +13,5 @@
 # Local runtime data
 /prometheus-data/
 /grafana-data/
+
+/secrets/

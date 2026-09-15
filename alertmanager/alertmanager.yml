@@ -1,9 +1,25 @@
 route:
-  receiver: lab-ui-only
+  receiver: lab-notifications
   group_by: ['alertname', 'instance']
   group_wait: 10s
   group_interval: 1m
   repeat_interval: 4h
 
 receivers:
-  - name: lab-ui-only
+  - name: lab-notifications
+    slack_configs:
+      - api_url_file: /run/secrets/slack-webhook-url
+        channel: '#observability-lab'
+        send_resolved: true
+        title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
+        text: |-
+          {{ range .Alerts }}
+          *대상:* {{ .Labels.instance }}
+          *환경:* {{ .Labels.environment }}
+          *상태:* {{ .Status }}
+          {{ if eq .Status "firing" }}
+          *내용:* {{ .Annotations.description }}
+          {{ else }}
+          *내용:* Windows 메트릭 수집이 복구되었습니다.
+          {{ end }}
+          {{ end }}

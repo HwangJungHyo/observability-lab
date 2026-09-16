@@ -23,3 +23,13 @@ receivers:
           *내용:* Windows 메트릭 수집이 복구되었습니다.
           {{ end }}
           {{ end }}
+    email_configs:
+      - to: '수신주소이메일명'
+        from: '발신주소이메일명'
+        smarthost: 'smtp.gmail.com:587'
+        auth_username: '인증계정이메일명'
+        auth_password_file: /run/secrets/gmail-app-password
+        require_tls: true
+        send_resolved: true
+        headers:
+          Subject: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'

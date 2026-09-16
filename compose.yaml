@@ -32,6 +32,7 @@ services:
       - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager-data:/alertmanager
       - ./secrets/slack-webhook-url:/run/secrets/slack-webhook-url:ro
+      - ./secrets/gmail-app-password:/run/secrets/gmail-app-password:ro
     restart: unless-stopped
 
 volumes:

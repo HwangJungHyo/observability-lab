@@ -1,5 +1,14 @@
 # observability-lab
 
+## 학습 문서와 현재 위치
+
+- [파일·컨테이너 관계도](docs/architecture.md): Mermaid 다이어그램과 마운트 대응표
+- [챕터 지도](docs/roadmap.md): 목적·범위·완료 기준·진행 순서
+- [4장 주문 API 실행](docs/chapters/04-order-api.md): 4-1 정상 주문 경로부터 검증
+
+현재 브랜치는 `lab/004-order-api`입니다. 1~3장의 수집·알림 검증 후 4-1 API 소스를 준비했습니다. Windows 실행은 가이드를 따라 별도로 검증합니다. 아래 기존 재현 절차는 2장 기준이며, 최신 구조와 이후 추가 내용은 위 문서를 우선합니다.
+
+
 Windows 호스트의 CPU·메모리·디스크를 Prometheus로 수집하고 Grafana로 확인하는 실무 관측 실습 저장소입니다. 설정 변경, 정상 판정, 장애 분석, 원복 과정을 Git으로 기록합니다.
 
 ## 현재 범위
@@ -10,9 +19,9 @@ Windows 호스트의 CPU·메모리·디스크를 Prometheus로 수집하고 Gra
 - Grafana 데이터 소스와 대시보드의 파일 기반 provisioning
 - CPU·메모리·디스크 사용률·디스크 여유 공간 패널 4개
 
-현재 구성은 `lab/002-windows-metrics` 브랜치에 있습니다. 아래 clone 명령은 이 브랜치를 명시합니다. main 병합 후에는 README의 브랜치 안내도 갱신합니다.
+아래 2장 시점 구성은 `lab/002-windows-metrics` 브랜치에 있습니다. 아래 clone 명령은 이 브랜치를 명시합니다. main 병합 후에는 README의 브랜치 안내도 갱신합니다.
 
-Loki·Tempo·Mimir·주문 API·알림 구성은 후속 실습입니다. 현재 대시보드의 임계값 색상은 알림 규칙이 아닙니다.
+2장 이후 알림 구성과 수신 검증을 완료했고, 현재 주문 API 실습을 시작합니다. Loki·Tempo·Mimir는 후속 실습입니다. 현재 대시보드의 임계값 색상은 알림 규칙이 아닙니다.
 
 ## 데이터 흐름과 접속 주소
 

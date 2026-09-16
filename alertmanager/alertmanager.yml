@@ -20,7 +20,7 @@ receivers:
           {{ if eq .Status "firing" }}
           *내용:* {{ .Annotations.description }}
           {{ else }}
-          *내용:* Windows 메트릭 수집이 복구되었습니다.
+          *내용:* {{ .Labels.alertname }} 알림 조건이 해제되었습니다. 대상 상태를 확인하세요.
           {{ end }}
           {{ end }}
     email_configs:

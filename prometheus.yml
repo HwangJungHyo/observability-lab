@@ -20,3 +20,15 @@ scrape_configs:
       - targets: ["host.docker.internal:9182"]
         labels:
           environment: lab
+
+  - job_name: order-api
+    static_configs:
+      - targets: ["order-api:8080"]
+        labels:
+          environment: lab
+
+  - job_name: payment
+    static_configs:
+      - targets: ["payment:8081"]
+        labels:
+          environment: lab

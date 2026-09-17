@@ -5,6 +5,7 @@ services:
     environment:
       SERVICE_NAME: payment
       PORT: "8081"
+      PAYMENT_DELAY_SECONDS: "${PAYMENT_DELAY_SECONDS:-0.08}"
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]

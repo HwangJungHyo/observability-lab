@@ -1,5 +1,6 @@
 """Chapter 4-2: local-only synthetic services with Prometheus metrics."""
 import json
+import math
 import os
 import socket
 import time
@@ -13,6 +14,10 @@ SERVICE = os.getenv("SERVICE_NAME", "order-api")
 PORT = int(os.getenv("PORT", "8080"))
 PAYMENT_URL = os.getenv("PAYMENT_URL", "http://payment:8081/payments")
 PAYMENT_TIMEOUT = float(os.getenv("PAYMENT_TIMEOUT_SECONDS", "2"))
+
+PAYMENT_DELAY = float(os.getenv("PAYMENT_DELAY_SECONDS", "0.08"))
+if not math.isfinite(PAYMENT_DELAY) or not 0 <= PAYMENT_DELAY <= 10:
+    raise SystemExit("PAYMENT_DELAY_SECONDS must be finite and between 0 and 10")
 
 REQUESTS = Counter(
     "lab_http_requests_total", "Completed business POST requests by response status.",
@@ -98,7 +103,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if SERVICE == "payment":
             # Deterministic simulation only: no real payment processor or money.
-            time.sleep(0.08)
+            time.sleep(PAYMENT_DELAY)
             self.reply(200, {"status": "approved", "payment_id": str(uuid.uuid4())})
             return
 

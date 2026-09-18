@@ -7,7 +7,7 @@
 5-2: JSON 로그와 request_id 전달을 추가해 주문·결제 요청을 연결한다.
 5-3: 장애 재현 → 메트릭의 시간대 확인 → 로그 검색 → 복구·기록.
 5-1은 사용자 Grafana 화면에서 주문201·결제200 접근 로그를 확인해 완료했다.
-5-2 JSON 로그 소스는 준비 환경 검증 완료, Windows 반영·검색 검증 대기다.
+5-2는 Windows에서 같은 request_id의 주문201·결제200 JSON 로그를 확인해 완료했다. 실험 010 참조.
 
 ## 구조와 파일
 
@@ -74,7 +74,7 @@ docker compose -f compose.yaml -f compose.orders.yaml -f compose.logs.yaml resta
 Grafana만 잠시 재시작되며 Prometheus 수집과 주문 API는 계속 실행된다.
 http://localhost:3001 에서 Explore를 열고 데이터 소스 Loki를 선택한다.
 
-## 5. 현재 로그 발생과 검색
+## 5. 5-1 당시 평문 로그 발생과 검색
 Alloy 시작 후 대상 탐색까지 약 5~10초 기다린 뒤 주문을 생성한다.
 ~~~bash
 date -Iseconds
@@ -88,7 +88,7 @@ curl -i --max-time 5 -X POST http://localhost:18080/orders -H 'Content-Type: app
 {environment="lab", service_name="payment"} |= "POST /payments"
 ~~~
 새 요청 시각에 주문201과 결제200 접근 로그를 확인한다.
-현재는 request_id가 없어 시간대·서비스·경로·코드로 좁힌다. 동일 요청을 확정적으로 연결하는 것은 다음 단계다.
+5-1 당시에는 request_id가 없어 시간대·서비스·경로·코드로 좁힌다. 동일 요청을 확정적으로 연결하는 것은 다음 단계다.
 
 ## 6. 수집 문제 점검
 ~~~bash
@@ -186,5 +186,62 @@ Grafana Explore → Loki → Last15m → Code:
 유효하지 않은 ID 대체 생성, 400 warn·502 error, UTC timestamp, 상태점검 로그 제외 및 request_id 메트릭 라벨 미사용을 확인했다.
 기존 201/400/502/504 메트릭 회귀 검사도 통과했다.
 재현: requirements 설치 후 python tests/verify_request_logs.py 및 python tests/verify_order_metrics.py.
-사용자 Windows에서의 새 JSON 수집·상관 검색은 아직 검증 대기다.
+사용자 Windows에서 새 JSON 수집 및 같은 request_id의 주문·결제 상관 검색을 확인했다. [실험 010](../experiments/010-json-request-correlation.md).
 request_id는 로그 연결이며 span 계층·구간별 시간 관계를 제공하는 분산 트레이스는 아니다. Tempo는 6장에서 연결한다.
+
+## 5-3 결제 중단의 장애 로그 분석
+
+상태: 실행 안내 준비. 장애·복구 결과는 아직 확인하지 않았다.
+목표: 실패한 요청 ID로 주문 오류를 찾고, 컨테이너 상태와 메트릭으로 원인을 교차 확인한다.
+로컬 모의 결제만 중지하며 실제 결제 시스템은 아니다.
+
+### 1. 결제 중지와 실패 요청
+저장소 루트의 Git Bash에서 실행한다. 반복 실행할 때마다 새로운 ID를 생성한다.
+~~~bash
+date -Iseconds
+docker compose -f compose.yaml -f compose.orders.yaml -f compose.logs.yaml stop payment
+request_id="down-$(date +%s)-$RANDOM"
+echo "$request_id"
+curl -i --max-time 10 -X POST http://localhost:18080/orders \
+  -H 'Content-Type: application/json' \
+  -H "X-Request-ID: $request_id" \
+  -d '{"amount":10000}'
+printf '\n{environment="lab", service_name=~"order-api|payment"} | json | __error__="" | request_id="%s"\n' "$request_id"
+~~~
+printf가 출력한 쿼리를 Grafana Explore의 Loki / Code에 붙여 넣는다. 조회 범위는 현재 Last15m.
+예상: order-api의 status_code=502, level=error, error=payment_unavailable.
+환경에 따라 timeout 계열이 나올 수 있으므로 실제 응답을 기록한다.
+결제가 중지돼 해당 요청의 payment 완료 로그는 예상하지 않는다. 로그 부재만으로 원인을 단정하지 않는다.
+
+~~~bash
+docker compose -f compose.yaml -f compose.orders.yaml -f compose.logs.yaml ps -a payment order-api
+~~~
+Prometheus에서 up{job=~"order-api|payment"}를 조회한다.
+다음 scrape 이후 order-api=1, payment=0이 예상된다.
+주문 서비스 up=1은 주문 기능 성공을 뜻하지 않는다.
+Grafana 오류율은 조회 구간의 실제 트래픽에 따라 달라지므로 반드시 100%라고 가정하지 않는다.
+
+### 2. 복구 (조사에 막혀도 먼저 실행 가능)
+~~~bash
+docker compose -f compose.yaml -f compose.orders.yaml -f compose.logs.yaml start payment
+docker compose -f compose.yaml -f compose.orders.yaml -f compose.logs.yaml ps payment order-api
+~~~
+payment가 healthy인 것을 확인한 후:
+~~~bash
+request_id="recovered-$(date +%s)-$RANDOM"
+echo "$request_id"
+curl -i --max-time 10 -X POST http://localhost:18080/orders \
+  -H 'Content-Type: application/json' \
+  -H "X-Request-ID: $request_id" \
+  -d '{"amount":10000}'
+printf '\n{environment="lab", service_name=~"order-api|payment"} | json | __error__="" | request_id="%s"\n' "$request_id"
+~~~
+새 ID의 주문201·결제200, info/error=null 로그와 두 대상 up=1을 확인한다.
+최근 rate 조회 구간에 장애 요청이 남아 있으면 복구 후에도 오류율은 즉시 0이 되지 않을 수 있다.
+
+### 3. 기록할 증거
+- 중단·복구 시각과 각 요청 ID
+- 실패 응답 코드·error·duration_ms 및 복구 응답
+- 컨테이너 상태와 up
+- 동일 ID의 주문·결제 로그 유무, 수집 문제와 구별한 근거
+- 실제 관측과 예상의 차이

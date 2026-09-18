@@ -16,7 +16,7 @@
 | 3 감지·통보 | 화면을 안 봐도 이상을 아는가? Alertmanager·Slack·Gmail | 장애·복구 수신 및 CPU 실습 규칙 보관 | 2~3 | 기능 검증 완료 |
 | 4 주문 API 가시화 | 주문이 느리거나 실패하는가? API·모의 결제·계측 | 요청량·지연·시스템 오류 구분 | 2~3 | 실습·원복·기록 완료 |
 | 5 로그 조사 | 실패한 요청에서 무슨 일이 있었나? Alloy·Loki | 요청 식별자로 오류 검색 | 2 | 실습·복구·기록 완료 |
-| 6 트레이스 | 어느 처리 구간이 느린가? OpenTelemetry·Tempo | 주문·결제 구간 지연 식별 | 2~3 | 예정 |
+| 6 트레이스 | 어느 처리 구간이 느린가? OpenTelemetry·Tempo | 주문·결제 구간 지연 식별 | 2~3 | 6-1 Tempo 기반 소스 준비 / 실행 대기 |
 | 7 메트릭 저장 확장 | LGTM의 메트릭 저장을 어떻게 연결하는가? Mimir | Prometheus remote_write·Grafana 조회 | 2 | 예정 |
 | 8 통합 대응·운영 기준 | 왜 실패하고 언제 알릴 것인가? 장애·부하 실험 | 세 신호로 원인 입증, 임계값 근거 기록 | 2~3 | 예정 |
 | 9 운영 재현성 | 팀이 안전하게 재구축·변경할 수 있는가? 버전·CI·배포·복구 | 새 환경 재현 및 변경 원복 | 2~3 | 예정 |
@@ -86,3 +86,13 @@ CPU 실습의 15%는 기능 검증용이며 운영 성능 임계값이 아니다
 - [JSON 정상 요청 연결](experiments/010-json-request-correlation.md)
 
 - [결제 중단·복구 JSON 로그](experiments/011-payment-outage-logs.md)
+
+## 6장 세부 순서
+
+- [ ] 6-1 Tempo 기동·Grafana 데이터 소스 연결
+- [ ] 6-2 OpenTelemetry 계측·Alloy 수집·주문/결제 span 연결
+- [ ] 6-3 trace_id로 로그·트레이스 연결
+- [ ] 6-4 지연·장애 비교·복구·기록
+
+- [6장 실행 가이드](chapters/06-tracing.md)
+- [5장 고객 설명](learning/05-customer-explanation.md)

@@ -6,7 +6,8 @@
 5-1: 주문·결제 컨테이너의 기존 stdout/stderr 로그를 Grafana에서 검색한다.
 5-2: JSON 로그와 request_id 전달을 추가해 주문·결제 요청을 연결한다.
 5-3: 장애 재현 → 메트릭의 시간대 확인 → 로그 검색 → 복구·기록.
-현재는 5-1 소스 준비 및 설정 검증 완료, Windows 실제 수집 검증 대기다.
+5-1은 사용자 Grafana 화면에서 주문201·결제200 접근 로그를 확인해 완료했다.
+5-2 JSON 로그 소스는 준비 환경 검증 완료, Windows 반영·검색 검증 대기다.
 
 ## 구조와 파일
 
@@ -17,12 +18,12 @@
 | alloy/config.alloy | Alloy /etc/alloy/config.alloy | Docker 대상 탐색·라벨 지정·로그 전송 |
 | grafana/provisioning/datasources/loki.yml | Grafana 데이터 소스 | 내부 http://loki:3100 조회 |
 
-주문·결제 app.py는 HTTP 접근 로그를 stderr에 기록한다. Docker가 이를 보관하고 Alloy가 Docker API로 읽어 Loki로 보낸다.
+5-1 당시 주문·결제 app.py는 HTTP 접근 로그를 stderr에 기록했다. 5-2부터 업무 요청 완료 JSON을 stdout에 기록한다. Docker가 이를 보관하고 Alloy가 Docker API로 읽어 Loki로 보낸다.
 Grafana는 Loki를 조회한다. 로그 수집 경로에 Prometheus는 들어가지 않는다.
 Docker 프로젝트 observability-lab의 order-api, payment 두 서비스만 대상으로 선정한다.
 라벨은 service_name, environment=lab, job=order-lab-logs 중심으로 제한한다.
-기존 로그에는 request_id, 처리 시간, 상세 결제 오류 원인이 없다. 5-2에서 계측한다.
-healthz·metrics 로그도 현재는 수집한다. 5-1에서는 쿼리로 POST 요청을 좁힌다.
+5-1 로그에는 request_id·처리 시간이 없다. 5-2 JSON에 request_id·duration_ms·error 분류를 추가한다.
+5-1에서는 healthz·metrics 접근 로그도 수집했다. 5-2부터 해당 접근 로그는 출력하지 않는다.
 
 ## 제품과 운영 범위
 - grafana/loki:3.7.8, grafana/alloy:v1.19.2 태그 고정. digest 고정은 아직 아니다.
@@ -109,9 +110,81 @@ docker compose -f compose.yaml -f compose.orders.yaml -f compose.logs.yaml stop 
 
 ## 검증
 준비 환경에서 위 버전 공식 Linux 실행 파일로 Loki -verify-config와 Alloy validate를 실행해 성공했다.
-YAML 파싱도 확인했다. Docker Desktop 실제 소켓 수집, 이미지 기동, Grafana 조회는 사용자 실행 대기다.
+YAML 파싱도 확인했다. 5-1 Docker Desktop 실제 수집과 Grafana 주문·결제 조회는 사용자 캡처로 확인했다.
 
 ## 근거
 - https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.docker/
 - https://grafana.com/docs/alloy/latest/reference/components/discovery/discovery.docker/
 - https://grafana.com/docs/loki/latest/get-started/quick-start/quick-start/
+
+## 5-2 JSON 로그와 요청 ID
+
+### 무엇이 달라지는가
+X-Request-ID 헤더를 읽어 주문에서 결제로 전달하고 각 응답 헤더에도 반환한다.
+없거나 허용 형식(영문·숫자·밑줄·하이픈 1~64자)이 아니면 UUID를 생성한다.
+입력 ID는 상관관계 검색용이며 인증이나 중복 주문 방지 수단이 아니다. 재사용하면 여러 요청이 함께 검색된다.
+각 서비스의 유효 업무 POST 처리 완료 시 JSON 한 줄을 stdout에 기록한다.
+기존 기본 access log는 중복을 막기 위해 끈다. healthz·metrics·없는 경로·미지원 메서드는 이번 업무 로그 범위에서 제외한다.
+이 로그는 전체 HTTP 보안 감사 로그가 아니다.
+
+필드:
+- timestamp: UTC ISO8601(+00:00)
+- level: 2xx/3xx info, 4xx warn, 5xx error (우리 실습의 선택)
+- service: order-api 또는 payment
+- event: request_completed (시작 로그는 service_started)
+- request_id: 주문·결제의 같은 요청을 찾는 키
+- method, route, status_code: 업무 경로와 응답 코드
+- duration_ms: 서버 처리 시간, 밀리초
+- error: 성공 시 null, 실패 시 invalid_request/payment_unavailable/payment_timeout 등의 분류
+
+본문·금액·인증 헤더는 기록하지 않는다. request_id는 Prometheus 라벨이나 Loki 수집 라벨로 올리지 않는다.
+Alloy는 JSON 원문을 그대로 전송한다. 조회 시 LogQL의 json으로 필드를 추출한다.
+기존 평문 로그도 보관 기간 동안 남아 있다.
+기존 '|= "POST /orders"' 검색은 새 JSON의 method/route 분리 형식과 일치하지 않으므로 아래 쿼리를 쓴다.
+
+### 반영
+~~~bash
+git status --short --branch
+git pull --ff-only origin lab/005-logging
+docker compose -f compose.yaml -f compose.orders.yaml -f compose.logs.yaml config --quiet
+~~~
+검사 성공 후:
+~~~bash
+PAYMENT_DELAY_SECONDS=0.08 docker compose -f compose.yaml -f compose.orders.yaml -f compose.logs.yaml up -d --build --force-recreate payment order-api
+docker compose -f compose.yaml -f compose.orders.yaml -f compose.logs.yaml ps payment order-api
+~~~
+두 API가 잠시 중단되고 메모리 Counter가 초기화된다. rate는 카운터 초기화를 처리하지만 재생성 직후 구간을 성능 비교에 쓰지 않는다.
+Alloy가 새 컨테이너를 탐색하도록 healthy 이후 약 10초 기다린다. Loki·Alloy·Grafana를 재생성할 필요는 없다.
+
+### 한 요청 추적
+~~~bash
+request_id="lab-$(date +%s)-$RANDOM"
+echo "$request_id"
+curl -i --max-time 5 -X POST http://localhost:18080/orders \
+  -H 'Content-Type: application/json' \
+  -H "X-Request-ID: $request_id" \
+  -d '{"amount":10000}'
+~~~
+201/confirmed와 X-Request-ID 응답 헤더를 확인한다.
+Grafana Explore → Loki → Last15m → Code:
+~~~logql
+{environment="lab", service_name=~"order-api|payment"}
+| json
+| __error__=""
+| request_id="터미널에서 출력한 ID"
+~~~
+정상 한 요청에 대해 payment200과 order-api201의 request_completed 로그가 각각 한 줄 보이는지 확인한다.
+쿼리의 __error__ 필터는 이전 평문 로그의 JSON 파싱 오류를 제외한다. 애플리케이션 오류 로그 자체를 제외하는 뜻은 아니다.
+
+서비스별 JSON 로그:
+~~~logql
+{environment="lab", service_name="order-api"} | json | __error__="" | event="request_completed"
+~~~
+
+### 검증과 한계
+준비 환경 실제 HTTP 통신으로 동시 요청 4개의 ID 전달·응답 헤더·JSON 로그를 검증했다.
+유효하지 않은 ID 대체 생성, 400 warn·502 error, UTC timestamp, 상태점검 로그 제외 및 request_id 메트릭 라벨 미사용을 확인했다.
+기존 201/400/502/504 메트릭 회귀 검사도 통과했다.
+재현: requirements 설치 후 python tests/verify_request_logs.py 및 python tests/verify_order_metrics.py.
+사용자 Windows에서의 새 JSON 수집·상관 검색은 아직 검증 대기다.
+request_id는 로그 연결이며 span 계층·구간별 시간 관계를 제공하는 분산 트레이스는 아니다. Tempo는 6장에서 연결한다.

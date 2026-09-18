@@ -1,5 +1,9 @@
 """Chapter 4-2: local-only synthetic services with Prometheus metrics."""
 import json
+import logging
+import re
+import sys
+from datetime import datetime, timezone
 import math
 import os
 import socket
@@ -34,12 +38,34 @@ for status in (200, 201, 400, 500, 502, 504):
     REQUESTS.labels(SERVICE, "POST", BUSINESS_ROUTE, str(status))
 DURATION.labels(SERVICE, "POST", BUSINESS_ROUTE)
 
+LOG = logging.getLogger("order_lab")
+LOG.setLevel(logging.INFO)
+LOG.propagate = False
+_stream = logging.StreamHandler(sys.stdout)
+_stream.setFormatter(logging.Formatter("%(message)s"))
+LOG.addHandler(_stream)
+
+
+def emit_log(level, event, **fields):
+    LOG.info(json.dumps({
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+        "level": level, "service": SERVICE, "event": event, **fields,
+    }, ensure_ascii=True))
+
 
 class Handler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        # Business requests are logged once as JSON in do_POST's finally block.
+        # This lab excludes health, metrics, unknown paths and unsupported methods.
+        pass
+
     def reply(self, status, payload):
         self.response_status = status
+        self.response_error = payload.get("error")
         body = json.dumps(payload).encode()
         self.send_response(status)
+        if getattr(self, "request_id", None):
+            self.send_header("X-Request-ID", self.request_id)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -69,8 +95,12 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != BUSINESS_ROUTE:
             self.reply(404, {"error": "not_found"})
             return
+        incoming_id = self.headers.get("X-Request-ID", "")
+        self.request_id = (incoming_id if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", incoming_id)
+                           else str(uuid.uuid4()))
         started = time.perf_counter()
         self.response_status = 500
+        self.response_error = None
         try:
             self.handle_business_post()
         except Exception:
@@ -78,9 +108,13 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             REQUESTS.labels(SERVICE, "POST", BUSINESS_ROUTE,
                             str(self.response_status)).inc()
-            DURATION.labels(SERVICE, "POST", BUSINESS_ROUTE).observe(
-                time.perf_counter() - started
-            )
+            elapsed = time.perf_counter() - started
+            DURATION.labels(SERVICE, "POST", BUSINESS_ROUTE).observe(elapsed)
+            level = ("error" if self.response_status >= 500 else
+                     "warn" if self.response_status >= 400 else "info")
+            emit_log(level, "request_completed", request_id=self.request_id,
+                     method="POST", route=BUSINESS_ROUTE, status_code=self.response_status,
+                     duration_ms=round(elapsed * 1000, 3), error=self.response_error)
 
     def handle_business_post(self):
         expected = "/orders" if SERVICE == "order-api" else "/payments"
@@ -108,7 +142,8 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         request = Request(PAYMENT_URL, data=json.dumps({"amount": amount}).encode(),
-                          headers={"Content-Type": "application/json"}, method="POST")
+                          headers={"Content-Type": "application/json",
+                                   "X-Request-ID": self.request_id}, method="POST")
         try:
             with urlopen(request, timeout=PAYMENT_TIMEOUT) as response:
                 payment = json.load(response)
@@ -131,5 +166,5 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     if SERVICE not in {"order-api", "payment"}:
         raise SystemExit("SERVICE_NAME must be order-api or payment")
-    print(f"Starting {SERVICE} on {PORT}", flush=True)
+    emit_log("info", "service_started", port=PORT)
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

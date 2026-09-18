@@ -1,0 +1,47 @@
+logging {
+  level = "info"
+}
+
+discovery.docker "orders" {
+  host = "unix:///var/run/docker.sock"
+  refresh_interval = "5s"
+  filter {
+    name = "label"
+    values = ["com.docker.compose.project=observability-lab"]
+  }
+}
+
+discovery.relabel "orders" {
+  targets = discovery.docker.orders.targets
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex = "order-api|payment"
+    action = "keep"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label = "service_name"
+  }
+  rule {
+    target_label = "environment"
+    replacement = "lab"
+  }
+  rule {
+    target_label = "job"
+    replacement = "order-lab-logs"
+  }
+}
+
+loki.source.docker "orders" {
+  host = "unix:///var/run/docker.sock"
+  targets = discovery.relabel.orders.output
+  labels = {}
+  refresh_interval = "5s"
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

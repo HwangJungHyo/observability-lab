@@ -1,0 +1,10 @@
+# User-provided Alertmanager log excerpts, 2026-09-16; timestamps UTC.
+# Original Slack group-key fields omitted for readability; selected fields retained.
+time=2026-09-16T02:18:41.004Z level=INFO source=app.go:194 msg="Starting Alertmanager" version="(version=0.34.0, branch=HEAD, revision=085f0ef7eb41da24cab8cd000f1345b6250f2edb)"
+time=2026-09-16T02:18:41.033Z level=DEBUG source=dispatch.go:206 msg=started component=dispatcher state=running
+time=2026-09-16T02:20:20.813Z level=DEBUG source=dispatch.go:259 msg="Received alert" component=dispatcher alert=WindowsExporterDown[c57d76e][active]
+time=2026-09-16T02:20:20.813Z level=DEBUG source=dispatch.go:934 msg=flushing component=dispatcher numAlerts=1 alerts="WindowsExporterDown: 1"
+time=2026-09-16T02:20:21.129Z level=DEBUG source=retry_stage.go:178 msg="Notify success" component=dispatcher receiver=lab-notifications integration=slack[0] attempts=1 duration=316.117788ms numAlerts=1 alerts="WindowsExporterDown: 1"
+time=2026-09-16T02:20:23.887Z level=DEBUG source=retry_stage.go:178 msg="Notify success" component=dispatcher receiver=lab-notifications integration=email[0] attempts=1 duration=3.073624617s numAlerts=1 alerts="WindowsExporterDown: 1"
+time=2026-09-16T02:21:20.544Z level=DEBUG source=dispatch.go:934 msg=flushing component=dispatcher numAlerts=1 alerts="WindowsExporterDown: 1"
+time=2026-09-16T02:21:35.543Z level=DEBUG source=dispatch.go:259 msg="Received alert" component=dispatcher alert=WindowsExporterDown[c57d76e][active]

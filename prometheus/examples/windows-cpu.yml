@@ -1,0 +1,21 @@
+groups:
+  - name: windows-cpu-lab
+    rules:
+      - alert: WindowsCpuHighLab
+        expr: |
+          (
+            100 * (
+              1 - avg by (instance, job, environment) (
+                rate(windows_cpu_time_total{job="windows",mode="idle"}[1m])
+              )
+            ) > 15
+          )
+          and on (instance, job)
+          (up{job="windows"} == 1)
+        for: 1m
+        labels:
+          severity: warning
+          purpose: lab
+        annotations:
+          summary: "Windows CPU 사용률 상승 — 실습"
+          description: '{{ $labels.instance }}의 CPU 1분 평균이 15%를 초과한 상태가 1분 지속되었습니다. 현재 평가값: {{ printf "%.1f" $value }}%.'

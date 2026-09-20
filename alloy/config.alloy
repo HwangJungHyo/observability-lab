@@ -45,3 +45,31 @@ loki.write "local" {
     url = "http://loki:3100/loki/api/v1/push"
   }
 }
+
+// Traces use OTLP; the Docker-to-Loki log pipeline above remains separate.
+otelcol.receiver.otlp "orders" {
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+  output {
+    traces = [otelcol.processor.batch.orders.input]
+  }
+}
+
+otelcol.processor.batch "orders" {
+  timeout = "1s"
+  send_batch_size = 256
+  send_batch_max_size = 512
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls {
+      insecure = true
+    }
+  }
+}

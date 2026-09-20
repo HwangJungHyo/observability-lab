@@ -9,3 +9,14 @@ datasources:
     editable: false
     jsonData:
       httpMethod: GET
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: '-1m'
+        spanEndTimeShift: '1m'
+        tags:
+          - key: service.name
+            value: service_name
+        filterByTraceID: false
+        filterBySpanID: false
+        customQuery: true
+        query: '{environment="lab", service_name=~"order-api|payment"} | json | __error__="" | trace_id="$${__span.traceId}"'

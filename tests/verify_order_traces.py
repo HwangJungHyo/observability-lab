@@ -8,6 +8,7 @@ import socket
 import subprocess
 import sys
 import threading
+import tempfile
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.request import Request, urlopen
@@ -16,6 +17,8 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTrace
 
 APP = Path(__file__).resolve().parents[1] / 'services/order-lab/app.py'
 records, procs = [], []
+log_files = []
+log_dir = tempfile.TemporaryDirectory()
 lock = threading.Lock()
 
 class Collector(BaseHTTPRequestHandler):
@@ -48,8 +51,11 @@ def start(role, p, **extra):
     env = dict(os.environ, SERVICE_NAME=role, PORT=str(p),
                OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=f'http://127.0.0.1:{collector.server_port}/v1/traces',
                **extra)
-    proc = subprocess.Popen([sys.executable, str(APP)], env=env,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    log_path = Path(log_dir.name) / f"{role}-{len(procs)}.jsonl"
+    log_files.append(log_path)
+    with log_path.open("w") as output:
+        proc = subprocess.Popen([sys.executable, str(APP)], env=env,
+                                stdout=output, stderr=subprocess.DEVNULL)
     procs.append(proc)
     for _ in range(150):
         if proc.poll() is not None:
@@ -87,6 +93,16 @@ def wait_trace(tid, count):
         time.sleep(.04)
     raise AssertionError(f'{tid}: expected {count}, got {len(found)}')
 
+def wait_logs(tid, count):
+    for _ in range(100):
+        all_logs = [json.loads(line) for p in log_files
+                    for line in p.read_text().splitlines()]
+        found = [item for item in all_logs if item.get('trace_id') == tid]
+        if len(found) == count:
+            return found
+        time.sleep(.02)
+    raise AssertionError(f"Expected {count} logs for {tid}, got {len(found)}")
+
 def attributes(span):
     return {a.key: a.value for a in span.attributes}
 
@@ -112,6 +128,15 @@ try:
         assert attributes(root)['http.response.status_code'].int_value == 201
         assert attributes(child)['http.response.status_code'].int_value == 200
         assert all(s.status.code == 0 for _, s in spans)
+        logs = wait_logs(tid, 2)
+        assert {item['service'] for item in logs} == {'order-api', 'payment'}
+        assert len({item['request_id'] for item in logs}) == 1
+        for item in logs:
+            server_span = root if item['service'] == 'order-api' else child
+            assert item['span_id'] == server_span.span_id.hex()
+            assert item['span_id'] != client.span_id.hex()
+            assert re.fullmatch('[0-9a-f]{16}', item['span_id'])
+            assert item['event'] == 'request_completed' 
     known = '0123456789abcdef0123456789abcdef'
     status, tid = order(op, 'parent-test', parent=f'00-{known}-0123456789abcdef-01')
     assert status == 201 and tid == known
@@ -126,9 +151,17 @@ try:
     assert status == 502
     failed = wait_trace(tid, 2)
     assert all(svc == 'order-api' and s.status.code == 2 for svc, s in failed)
+    failure_log = wait_logs(tid, 1)[0]
+    failed_root = next(s for _, s in failed if s.kind == 2)
+    assert failure_log['span_id'] == failed_root.span_id.hex()
+    assert failure_log['error'] == 'payment_unavailable'
+    assert failure_log['level'] == 'error'
+    starts = [json.loads(line) for p in log_files for line in p.read_text().splitlines()
+              if json.loads(line)['event'] == 'service_started']
+    assert starts and all('trace_id' not in item and 'span_id' not in item for item in starts)
     with urlopen(f'http://127.0.0.1:{op}/metrics') as r:
         metrics = r.read().decode()
-        assert 'trace_id' not in metrics and 'request_id' not in metrics
+        assert all(key not in metrics for key in ('trace_id', 'span_id', 'request_id'))
     with lock:
         assert len(records) == 12  # health and metrics do not create spans
         assert all(not s.events for _, s in records)  # no raw exception/body events
@@ -137,7 +170,7 @@ try:
     collector.server_close()
     payment = start('payment', pp)
     assert order(op, 'collector-down')[0] == 201
-    print('PASS: OTLP protobuf export, concurrent isolation, 3-span parent chain, W3C propagation, 400/502 status, no health spans/ID metric labels, business success without collector')
+    print('PASS: OTLP protobuf export, concurrent isolation, 3-span parent chain, W3C propagation, 400/502 status, no health spans/ID metric labels, business success without collector; log trace/span IDs match exported server spans')
 finally:
     for p in procs:
         if p.poll() is None:
@@ -146,3 +179,4 @@ finally:
         p.wait(timeout=3)
     collector.shutdown()
     collector.server_close()
+    log_dir.cleanup()

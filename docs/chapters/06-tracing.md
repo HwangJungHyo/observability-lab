@@ -12,8 +12,8 @@ Tempo는 트레이스 저장·조회, OpenTelemetry는 계측·문맥 전달·�
 | 단계 | 범위 | 완료 기준 | 상태 |
 |---|---|---|---|
 | 6-1 | Tempo 저장·조회 기반 | ready 및 Grafana Tempo 연결 | 사용자 확인 완료 (2026-09-20) |
-| 6-2 | 앱 OpenTelemetry 계측·Alloy OTLP 전달 | 주문 server → 결제 client → 결제 server span 연결 | 코드·HTTP 검증 완료 / Windows 수집 확인 대기 |
-| 6-3 | trace_id 로그 연계 | 한 요청의 로그와 트레이스 상호 조회 | 예정 |
+| 6-2 | 앱 OpenTelemetry 계측·Alloy OTLP 전달 | 주문 server → 결제 client → 결제 server span 연결 | 사용자 화면 2서비스·3span 검증 완료 (실험 012) |
+| 6-3 | trace_id 로그 연계 | 한 요청의 로그와 트레이스 상호 조회 | 소스·준비 환경 검증 완료 / 사용자 확인 대기 |
 | 6-4 | 제어된 지연·중단·복구 | 지연 span, 오류 span 비교 및 원복·기록 | 예정 |
 
 ## 6-1 구성
@@ -94,7 +94,7 @@ DNS/TCP 세부 지연은 별도 계측 없이는 구분되지 않을 수 있다.
 3. payment / POST /payments / SERVER (2의 자식)
 
 공통 trace_id와 서로 다른 span_id를 갖는다. 두 POST /payments는 같은 서비스의 중복 로그가 아니라 호출자와 수신자의 측정이다.
-request_id는 기존 로그 연결용으로 유지하며 trace_id와 별개다. 6-3에서 JSON 로그 연계를 추가한다.
+request_id는 기존 로그 연결용으로 유지하며 trace_id와 별개다. 6-3에서 JSON 로그에 활성 trace_id·span_id를 추가한다.
 측정 대상은 고정된 업무 POST 경로다. healthz, metrics, 알 수 없는 경로는 span을 생성하지 않는다.
 HTTP server 5xx 및 외부 호출 예외는 ERROR, 정상 및 server 4xx는 UNSET으로 둔다. UNSET은 실패라는 뜻이 아니다.
 추적 root는 실습에서 100% 샘플링하고 자식은 부모의 sampling flag를 따른다. 운영 비율은 별도 결정한다.
@@ -162,9 +162,76 @@ docker compose -f compose.yaml -f compose.orders.yaml -f compose.logs.yaml up -d
 - verify_order_metrics.py: 기존 201/400/502/504 카운터·히스토그램 및 상태 점검 제외.
 - verify_request_logs.py: 기존 request_id 전파, JSON 수준·오류·시각, 동시 요청 연결.
 공식 Alloy v1.19.2 Linux 실행 파일의 validate 검사도 통과했다.
-이는 앱 → 테스트 수신기 검증이다. 사용자 Docker Desktop의 Alloy → Tempo → Grafana 종단 검증은 별도 대기다.
+이는 앱 → 테스트 수신기 검증이다. 사용자 Docker Desktop의 Alloy → Tempo → Grafana 종단 검증은 실험 012에서 확인했다.
 
 참고:
 - https://opentelemetry.io/docs/languages/python/instrumentation/
 - https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.receiver.otlp/
 - https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.exporter.otlp/
+
+## 6-3 JSON 로그 ↔ 트레이스
+
+### 변경 파일과 의미
+- app.py emit_log: 현재 요청 스레드의 활성 span context에서 trace_id(32자리)·span_id(16자리)를 기록.
+- loki.yml derivedFields: JSON 원문에서 trace_id를 추출해 uid=tempo로 내부 링크.
+- tempo.yml tracesToLogsV2: Loki에서 같은 trace_id의 주문·결제 로그를 조회.
+- IDs는 JSON 본문에만 기록한다. Alloy 수집 라벨과 Prometheus 라벨에는 추가하지 않는다.
+- 시작 로그처럼 유효한 span context가 없으면 ID 필드를 생략한다.
+- 주문 완료 로그의 span_id는 주문 SERVER, 결제 완료 로그의 span_id는 결제 SERVER의 ID다.
+- CLIENT 완료 로그는 별도로 만들지 않는다. 따라서 트레이스→로그는 span_id 대신 trace_id로 필터링한다.
+- Trace to logs의 시간 범위는 선택 span 전후 1분을 더한다. 장시간 trace에는 별도 조정이 필요하다.
+- 샘플링·전송 유실·보관 기간 차이로 ID가 있어도 Tempo 조회가 안 될 수 있다.
+- 변경 전 로그에는 ID가 없으며 소급 추가되지 않는다. 새 주문으로 검증한다.
+- provisioning 파일의 $ 두 개는 Grafana 변수 보존용 escaping이다. 적용된 API 설정에는 $ 한 개가 남는다.
+
+### 반영
+~~~bash
+cd /c/Users/PC/Desktop/git-devops/observability-lab
+git status --short --branch
+git pull --ff-only origin lab/006-tracing
+docker compose -f compose.yaml -f compose.orders.yaml -f compose.logs.yaml -f compose.traces.yaml config --quiet
+~~~
+검사 성공 후:
+~~~bash
+PAYMENT_DELAY_SECONDS=0.08 docker compose -f compose.yaml -f compose.orders.yaml -f compose.logs.yaml -f compose.traces.yaml up -d --build payment order-api
+docker compose -f compose.yaml -f compose.orders.yaml -f compose.logs.yaml -f compose.traces.yaml restart grafana
+docker compose -f compose.yaml -f compose.orders.yaml -f compose.logs.yaml -f compose.traces.yaml ps payment order-api grafana
+~~~
+앱 재생성으로 메모리 카운터가 초기화된다. 두 앱 healthy 이후 Alloy 대상 탐색에 약 10초 여유를 둔다.
+Alloy·Tempo 설정은 이번 단계에서 변경하지 않으므로 재시작할 필요 없다.
+
+### 새 요청과 로그 검색
+~~~bash
+request_id="correlate-$(date +%s)-$RANDOM"
+curl -i --max-time 10 -X POST http://localhost:18080/orders \
+  -H 'Content-Type: application/json' \
+  -H "X-Request-ID: $request_id" \
+  -d '{"amount":10000}'
+printf '\n{environment="lab", service_name=~"order-api|payment"} | json | __error__="" | request_id="%s"\n' "$request_id"
+~~~
+출력된 쿼리를 Explore → Loki, Last15m에 붙여 넣는다.
+201과 X-Trace-ID 확인. 로그 두 줄의 trace_id가 응답 X-Trace-ID와 같고 span_id는 서로 다른지 확인한다.
+로그 상세의 TraceID / View trace 링크로 Tempo를 열어 동일 trace를 확인한다.
+그다음 Tempo의 주문 SERVER span을 선택하고 Logs for this span 링크로 Loki를 조회한다.
+이번 custom query는 선택 span만이 아니라 그 trace의 두 서비스 로그를 조회한다.
+성공 시 같은 trace_id의 주문201·결제200이 보인다.
+오래된 6-2 trace 대신 반드시 이번에 생성한 trace를 사용한다.
+
+### 점검
+- JSON ID 없음: 최신 앱 이미지인지 확인. service_started 로그에는 원래 ID가 없다.
+- View trace 링크 없음: Grafana 재시작·브라우저 새로고침 후 Loki 데이터 소스 derivedFields 확인.
+- 링크는 있으나 trace 없음: ID 직접 검색, 앱·Alloy 전송 오류 및 시간 범위 확인.
+- Tempo→Loki 조회 없음: 새 trace인지, 시간 범위, query 변수 적용, Loki 수집 상태 확인.
+로그 검색은 JSON 원문을 유지한다. line_format으로 trace_id를 제거하면 정규식 링크가 동작하지 않을 수 있다.
+현재 raw 89ms trace는 6-3 변경 전이므로 관련 로그에 trace_id가 없는 것이 정상이다.
+
+### 검증 범위
+실제 HTTP·OTLP protobuf 테스트에서 동시 요청 로그의 trace_id와 송신 trace_id,
+두 SERVER span_id와 로그 span_id의 일치 및 장애 로그의 연결을 확인했다.
+추적 비활성 시와 service_started에는 ID를 넣지 않는 것도 확인했다.
+YAML 파싱·데이터 소스 UID 연결·JSON 정규식·달러 escaping을 확인했다.
+Grafana UI의 실제 양방향 클릭 동작은 사용자 확인 대기다.
+
+공식 근거:
+- https://grafana.com/docs/grafana/latest/datasources/tempo/configure-tempo-data-source/provision/
+- https://grafana.com/docs/grafana/latest/datasources/tempo/configure-tempo-data-source/configure-trace-to-logs/

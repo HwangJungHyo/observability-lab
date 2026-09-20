@@ -53,6 +53,7 @@ try:
         assert any(x['level']=='error' and x['error']=='payment_unavailable' for x in orders)
         assert all(x['timestamp'].endswith('+00:00') and x['duration_ms']>=0 for x in orders)
         assert all('amount' not in x and 'body' not in x for x in orders+payments)
+        assert all('trace_id' not in x and 'span_id' not in x for x in orders+payments)
         print('PASS: concurrent request ID propagation, response header, generated ID, JSON levels/errors/UTC, health suppression, no ID metric labels')
 finally:
     for p in procs:

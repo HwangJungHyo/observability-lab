@@ -73,6 +73,11 @@ LOG.addHandler(_stream)
 
 
 def emit_log(level, event, **fields):
+    # Read the active context in this request thread, never a process-global ID.
+    context = trace.get_current_span().get_span_context()
+    if context.is_valid:
+        fields.update(trace_id=format(context.trace_id, "032x"),
+                      span_id=format(context.span_id, "016x"))
     LOG.info(json.dumps({
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
         "level": level, "service": SERVICE, "event": event, **fields,

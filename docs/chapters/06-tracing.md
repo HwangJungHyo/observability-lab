@@ -13,8 +13,8 @@ Tempo는 트레이스 저장·조회, OpenTelemetry는 계측·문맥 전달·�
 |---|---|---|---|
 | 6-1 | Tempo 저장·조회 기반 | ready 및 Grafana Tempo 연결 | 사용자 확인 완료 (2026-09-20) |
 | 6-2 | 앱 OpenTelemetry 계측·Alloy OTLP 전달 | 주문 server → 결제 client → 결제 server span 연결 | 사용자 화면 2서비스·3span 검증 완료 (실험 012) |
-| 6-3 | trace_id 로그 연계 | 한 요청의 로그와 트레이스 상호 조회 | 소스·준비 환경 검증 완료 / 사용자 확인 대기 |
-| 6-4 | 제어된 지연·중단·복구 | 지연 span, 오류 span 비교 및 원복·기록 | 예정 |
+| 6-3 | trace_id 로그 연계 | 한 요청의 로그와 트레이스 상호 조회 | 사용자 양방향 링크 확인 완료 (2026-09-21, 실험 013) |
+| 6-4 | 제어된 지연·중단·복구 | 지연 span, 오류 span 비교 및 원복·기록 | 6-4a 지연·복구 완료 (실험 014), 6-4b 중단 검증 예정 |
 
 ## 6-1 구성
 공식 v3.0.3 single-binary 예제를 기반으로 필요한 저장·수신·조회만 구성한다.
@@ -230,8 +230,22 @@ printf '\n{environment="lab", service_name=~"order-api|payment"} | json | __erro
 두 SERVER span_id와 로그 span_id의 일치 및 장애 로그의 연결을 확인했다.
 추적 비활성 시와 service_started에는 ID를 넣지 않는 것도 확인했다.
 YAML 파싱·데이터 소스 UID 연결·JSON 정규식·달러 escaping을 확인했다.
-Grafana UI의 실제 양방향 클릭 동작은 사용자 확인 대기다.
+Grafana UI의 실제 양방향 클릭은 2026-09-21 사용자 확인으로 완료했다. [실험 013](../experiments/013-log-trace-correlation.md)에 로그 원문과 식별자를 기록했다.
 
 공식 근거:
 - https://grafana.com/docs/grafana/latest/datasources/tempo/configure-tempo-data-source/provision/
 - https://grafana.com/docs/grafana/latest/datasources/tempo/configure-tempo-data-source/configure-trace-to-logs/
+
+## 6-4 지연·중단 비교
+
+### 6-4a 제어된 1초 지연 — 완료 (2026-09-21)
+[실험 014](../experiments/014-payment-delay-traces.md)에 실행·원복 명령과 측정값을 기록했다.
+지연 시 세 span은 화면 약 1초, 복구 후 주문 SERVER 82.73ms / CLIENT 82.34ms / 결제 SERVER 80.77ms였다.
+최종 PAYMENT_DELAY_SECONDS=0.08, 두 서비스 healthy, 주문201 및 양방향 연결을 확인했다.
+단일 표본·화면 반올림·측정 범위 차이를 구분한다.
+
+### 6-4b 결제 중단 — 다음 단계
+결제 중단 후 주문 HTTP 오류, CLIENT/SERVER 오류 상태, 동일 trace_id의 오류 로그를 대조한다.
+결제 SERVER span 부재는 컨테이너 상태·로그와 함께 해석한다.
+결제를 다시 시작하고 healthy·주문201·정상 3span 및 메트릭 수집 복구를 확인한 뒤 기록한다.
+현재는 미수행이며 6장 전체 완료로 표시하지 않는다.

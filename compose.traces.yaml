@@ -1,0 +1,23 @@
+services:
+  order-api:
+    environment:
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://alloy:4318/v1/traces
+
+  payment:
+    environment:
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://alloy:4318/v1/traces
+
+  tempo:
+    image: grafana/tempo:3.0.3
+    command:
+      - -target=all
+      - -config.file=/etc/tempo/tempo.yml
+    ports:
+      - "127.0.0.1:3200:3200"
+    volumes:
+      - ./tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo-data:/var/tempo
+    restart: unless-stopped
+
+volumes:
+  tempo-data:

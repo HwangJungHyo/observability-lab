@@ -1,0 +1,11 @@
+groups:
+  - name: windows-host
+    rules:
+      - alert: WindowsExporterDown
+        expr: up{job="windows"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Windows 메트릭 수집 실패"
+          description: "{{ $labels.instance }} 수집 실패가 1분 이상 지속됩니다. exporter 서비스, 네트워크, 방화벽을 확인하세요."

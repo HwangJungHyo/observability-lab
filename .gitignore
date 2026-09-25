@@ -15,3 +15,6 @@
 /grafana-data/
 
 /secrets/
+
+# Local image lock snapshots
+/.local/

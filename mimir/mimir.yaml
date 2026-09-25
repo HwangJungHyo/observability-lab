@@ -1,0 +1,53 @@
+target: all
+multitenancy_enabled: true
+ingest_storage:
+  enabled: false
+server:
+  http_listen_port: 9009
+  log_level: info
+common:
+  storage:
+    backend: s3
+    s3:
+      endpoint: object-store:8333
+      region: us-east-1
+      bucket_name: mimir-lab
+      access_key_id: ${MIMIR_S3_ACCESS_KEY}
+      secret_access_key: ${MIMIR_S3_SECRET_KEY}
+      insecure: true
+      bucket_lookup_type: path
+blocks_storage:
+  storage_prefix: blocks
+  tsdb:
+    dir: /data/tsdb
+  bucket_store:
+    sync_dir: /data/tsdb-sync
+distributor:
+  ring:
+    kvstore:
+      store: memberlist
+ingester:
+  ring:
+    replication_factor: 1
+    min_ready_duration: 0s
+    kvstore:
+      store: memberlist
+compactor:
+  data_dir: /data/compactor
+  sharding_ring:
+    kvstore:
+      store: memberlist
+store_gateway:
+  sharding_ring:
+    replication_factor: 1
+    kvstore:
+      store: memberlist
+ruler:
+  rule_path: /data/ruler
+  ring:
+    kvstore:
+      store: memberlist
+ruler_storage:
+  storage_prefix: rules
+limits:
+  compactor_blocks_retention_period: 168h

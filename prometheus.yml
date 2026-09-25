@@ -32,3 +32,15 @@ scrape_configs:
       - targets: ["payment:8081"]
         labels:
           environment: lab
+
+  - job_name: mimir
+    static_configs:
+      - targets: ["mimir:9009"]
+        labels:
+          environment: lab
+
+remote_write:
+  - name: mimir_lab
+    url: http://mimir:9009/api/v1/push
+    headers:
+      X-Scope-OrgID: lab

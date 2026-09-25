@@ -1,5 +1,7 @@
 # 7-6. 병합 후 원본 블록 정리와 조회 결과 유지 검증
 
+> 아래 완료·미검증 표시는 해당 실험 시점의 범위다. 후속 검증은 [7장 체크포인트](../../roadmap.md), [보존 만료 삭제](7-7-retention-result.md), [실제 S3 읽기](7-8-s3-read-result.md)를 참조한다.
+
 - 검증일: 2026-09-25 (KST)
 - 저장소 / 브랜치: `observability-lab` / `lab/007-mimir`
 - 권장 저장 경로: `docs/evidence/007-mimir/7-6-result.md`

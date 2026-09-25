@@ -1,5 +1,7 @@
 # 7-3 Mimir 수신 중단과 remote_write 복구 검증
 
+> 아래 완료·미검증 표시는 해당 실험 시점의 범위다. 후속 검증은 [7장 체크포인트](../../roadmap.md), [보존 만료 삭제](7-7-retention-result.md), [실제 S3 읽기](7-8-s3-read-result.md)를 참조한다.
+
 - 실험일: 2026-09-24
 - 환경: Prometheus → Mimir 3.2.1, tenant lab
 - 방식: Mimir 컨테이너 stop → 관측 → start

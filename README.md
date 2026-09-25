@@ -6,22 +6,46 @@
 - [챕터 지도](docs/roadmap.md): 목적·범위·완료 기준·진행 순서
 - [4장 주문 API 실행](docs/chapters/04-order-api.md): 4-1 정상 주문 경로부터 검증
 
-현재 브랜치는 `lab/006-tracing`입니다. 6장 기능 실험은 사용자 확인을 근거로 완료했으며, 다음은 Mimir 중앙 저장과 전송 장애·복구 검증입니다. [개정 커리큘럼](docs/roadmap.md)과 [6장 종료 기록](docs/experiments/015-payment-outage-traces.md)을 확인하세요. 아래 기존 재현 절차는 2장 기준이며, 이후 구성은 챕터별 문서를 우선합니다.
+## 현재 커리큘럼과 진행 상태
 
+장 번호의 기준은 [챕터 지도](docs/roadmap.md)다. 최초 10장 계획에서 현재 11장 과정으로 변경된 이유와 대응표도 해당 문서에 기록한다. 실험 파일의 일련번호와 장 번호는 별개다.
 
-Windows 호스트의 CPU·메모리·디스크를 Prometheus로 수집하고 Grafana로 확인하는 실무 관측 실습 저장소입니다. 설정 변경, 정상 판정, 장애 분석, 원복 과정을 Git으로 기록합니다.
+| 장 | 주제 | 상태 / 진입 문서 |
+|---|---|---|
+| 1 | 수집 기반 | [수집 실패 검증](docs/experiments/001-scrape-failure.md) |
+| 2 | Windows 호스트 가시화 | 아래 2장 재현 절차 및 [CPU 부하 기록](docs/experiments/2026-09-14-windows-cpu-load.md) |
+| 3 | 감지·통보 | [알림 실험](docs/experiments/003-windows-exporter-alerting.md) |
+| 4 | 주문 API 가시화 | [실행 가이드](docs/chapters/04-order-api.md) |
+| 5 | 로그 조사 | [Alloy·Loki](docs/chapters/05-logging.md) |
+| 6 | 트레이스 | [OpenTelemetry·Tempo](docs/chapters/06-tracing.md), [종료 기록](docs/experiments/015-payment-outage-traces.md) |
+| 7 | Mimir 중앙 저장 | 주요 저장·조회·삭제 증거 확보, 원복·잔여 검증 확인 필요. 아래 목차 참조 |
+| 8 | 통합 조사·부하·SLO | 예정: 정상 기준선, 통제된 장애, 세 신호 대조, SLI/SLO 초안 |
+| 9 | 운영 알림·대응 | 예정: 고객 영향·관측 시스템 알림, FIRING/RESOLVED, Runbook |
+| 10 | 재현·변경·복구 | 예정: 버전 고정, CI, 보안, 새 환경 재현, 백업 복원 |
+| 11 | 분산·HA 확장 | 선택 심화: 다중 인스턴스·Kubernetes·장애 허용 |
 
-## 현재 범위
+### 7장 문서 목차
 
-- Windows + Git Bash + Docker Desktop(WSL2 백엔드, Linux 컨테이너)
-- Windows에 직접 설치한 windows_exporter
-- Prometheus의 자기 메트릭 및 Windows 메트릭 수집
-- Grafana 데이터 소스와 대시보드의 파일 기반 provisioning
-- CPU·메모리·디스크 사용률·디스크 여유 공간 패널 4개
+| 단계 | 문서 |
+|---|---|
+| 7-0 | [구성 설계](docs/chapters/07-mimir-design.md), [이미지 준비](docs/chapters/07-mimir-image-preparation.md) |
+| 7-1 | [기동 가이드](docs/chapters/07-mimir-install.md), [기동 결과](docs/experiments/016-mimir-storage-startup.md) |
+| 7-2 | [remote_write 연결 가이드](docs/chapters/07-mimir-remote-write.md) |
+| 7-3 | [수신 중단과 재전송](docs/evidence/007-mimir/7-3-result.md) |
+| 7-4 | [블록의 S3 저장](docs/evidence/007-mimir/7-4-result.md) |
+| 7-5 | [Store-gateway 과거 조회](docs/evidence/007-mimir/7-5-result.md) |
+| 7-6 | [병합 원본 삭제와 조회 유지](docs/evidence/007-mimir/7-6-result.md) |
+| 7-7 | [7일 보존 만료 삭제](docs/evidence/007-mimir/7-7-retention-result.md) |
+| 7-8 | [실제 S3 읽기](docs/evidence/007-mimir/7-8-s3-read-result.md) |
+| 7-9 | [장애 증상과 TSDB 구조](docs/evidence/007-mimir/7-9-components-and-tsdb-guide.md) |
 
-아래 2장 시점 구성은 `lab/002-windows-metrics` 브랜치에 있습니다. 아래 clone 명령은 이 브랜치를 명시합니다. main 병합 후에는 README의 브랜치 안내도 갱신합니다.
+검증 범위: 보존 시험은 168h 정책을 유지하고 삭제 유예·정리 주기를 1분으로 단축했다. S3 읽기 시험은 인덱스 캐시가 활성 상태였다. 실행 설정 복원, 테넌트 격리 및 재시작 전후 과거 조회 대조는 [남은 검증](docs/roadmap.md)에 구분한다.
 
-2장 이후 알림 수신, 주문 API 메트릭, Alloy·Loki 로그, OpenTelemetry·Tempo 트레이스의 기능 검증을 진행했습니다. Mimir는 다음 구축 단계입니다. 아래 2장 대시보드의 임계값 색상은 알림 규칙이 아닙니다.
+## 2장 기준 재현 가이드
+
+아래는 Windows + Git Bash + Docker Desktop, windows_exporter, Prometheus, Grafana를 사용한 **2장 시점**의 재현 절차다. 3장 이후의 알림·주문 API·로그·트레이스·Mimir 구성은 위 장별 가이드를 따른다.
+
+2장 구성은 `lab/002-windows-metrics` 브랜치에 보관되어 있어 아래 clone 명령도 그 브랜치를 명시한다. 전체 과정의 최신 문서와 설정은 `main`을 기준으로 확인한다. 아래 대시보드의 임계값 색상은 알림 규칙이 아니다.
 
 ## 데이터 흐름과 접속 주소
 

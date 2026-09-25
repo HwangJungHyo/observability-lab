@@ -1,5 +1,7 @@
 # 7-4. Mimir TSDB 블록의 S3 저장 검증
 
+> 아래 완료·미검증 표시는 해당 실험 시점의 범위다. 후속 검증은 [7장 체크포인트](../../roadmap.md), [보존 만료 삭제](7-7-retention-result.md), [실제 S3 읽기](7-8-s3-read-result.md)를 참조한다.
+
 - 검증일: 2026-09-25 (KST)
 - 저장소 / 브랜치: `observability-lab` / `lab/007-mimir`
 - 권장 저장 경로: `docs/evidence/007-mimir/7-4-result.md`
@@ -34,7 +36,7 @@
 | head_compaction_idle_timeout | 1h |
 | ship_interval | 1m |
 | TSDB retention_period | 13h |
-| compactor_blocks_retention_period | 168h（7일） |
+| compactor_blocks_retention_period | 168h(7일) |
 
 주기 설정은 실제 실행 중인 `/config` 출력에서 확인했다. `blocks/lab/`은 S3 목록 조회로 확인한 실제 경로다. 13h는 로컬 블록 보존 관련 설정이며, 168h는 객체 저장소 블록의 보존 정책이다. 이번 실습에서 보존 기한에 따른 실제 삭제는 검증하지 않았다.
 
@@ -72,7 +74,7 @@
 
 ## 4. 블록 생성 및 업로드 후 관측
 
-2026-09-25 06:49:52 UTC（15:49:52 KST）상태 화면에서 확인했다.
+2026-09-25 06:49:52 UTC(15:49:52 KST)상태 화면에서 확인했다.
 
 - 로컬 Blocks: 7개
 - 7개 모두 Uploaded 열에 시각 표시
@@ -125,10 +127,10 @@
 |---|---|
 | ULID | 01M3BNTR6G0063CGZQDM31ZQ49 |
 | 객체 경로 | blocks/lab/01M3BNTR6G0063CGZQDM31ZQ49/ |
-| Min Time（UTC） | 2026-09-25T04:00:02.574000+00:00 |
-| Max Time（UTC） | 2026-09-25T06:00:00+00:00 |
-| Min Time（KST） | 2026-09-25 13:00:02.574 |
-| Max Time（KST） | 2026-09-25 15:00:00 |
+| Min Time(UTC) | 2026-09-25T04:00:02.574000+00:00 |
+| Max Time(UTC) | 2026-09-25T06:00:00+00:00 |
+| Min Time(KST) | 2026-09-25 13:00:02.574 |
+| Max Time(KST) | 2026-09-25 15:00:00 |
 | numSamples | 4,685,316 |
 | numFloatSamples | 4,685,316 |
 | numSeries | 10,065 |
@@ -136,7 +138,7 @@
 
 통계와 시간은 S3에서 GET한 meta.json의 값이다. 시간 범위는 메타데이터의 경계이며, 마지막 샘플이 Max Time에 정확히 존재한다는 의미는 아니다.
 
-| 객체 | 크기（bytes） | 검증 방식 |
+| 객체 | 크기(bytes) | 검증 방식 |
 |---|---:|---|
 | chunks/000001 | 11,419,926 | S3 LIST에서 키·크기 확인 |
 | index | 1,166,707 | S3 LIST에서 키·크기 확인 |

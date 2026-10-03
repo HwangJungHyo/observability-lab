@@ -19,7 +19,7 @@
 | 5 | 로그 조사 | [Alloy·Loki](docs/chapters/05-logging.md) |
 | 6 | 트레이스 | [OpenTelemetry·Tempo](docs/chapters/06-tracing.md), [종료 기록](docs/experiments/015-payment-outage-traces.md) |
 | 7 | Mimir 중앙 저장 | 주요 저장·조회·삭제 증거 확보, 원복·잔여 검증 확인 필요. 아래 목차 참조 |
-| 8 | 통합 조사·부하·SLO | 예정: 정상 기준선, 통제된 장애, 세 신호 대조, SLI/SLO 초안 |
+| 8 | 통합 조사·부하·SLO | 핵심 학습 정리: [최종 보고서](docs/evidence/008-integrated-incident/8-7-final-report.md), 미검증 항목 구분 |
 | 9 | 운영 알림·대응 | 예정: 고객 영향·관측 시스템 알림, FIRING/RESOLVED, Runbook |
 | 10 | 재현·변경·복구 | 예정: 버전 고정, CI, 보안, 새 환경 재현, 백업 복원 |
 | 11 | 분산·HA 확장 | 선택 심화: 다중 인스턴스·Kubernetes·장애 허용 |
@@ -41,11 +41,23 @@
 
 검증 범위: 보존 시험은 168h 정책을 유지하고 삭제 유예·정리 주기를 1분으로 단축했다. S3 읽기 시험은 인덱스 캐시가 활성 상태였다. 실행 설정 복원, 테넌트 격리 및 재시작 전후 과거 조회 대조는 [남은 검증](docs/roadmap.md)에 구분한다.
 
+### 8장 문서 목차
+
+현재 실습 브랜치는 `lab/008-integrated-incident`다. 장애 주입·복구, smoke 및 1→3→5 VU 부하를 수행했다. 급증·지속 부하, 최대 용량과 운영 SLO 준수는 미검증이다.
+
+| 문서 | 내용 |
+|---|---|
+| [8장 전체 목차](docs/evidence/008-integrated-incident/README.md) | 8-0 준비 점검부터 8-7 최종 정리까지 |
+| [최종 보고서](docs/evidence/008-integrated-incident/8-7-final-report.md) | 수행 결과·근거·미검증 항목·9장 인계 |
+| [SLI·SLO·오류 예산](docs/evidence/008-integrated-incident/8-6-sli-slo.md) | 기존 실험 표본으로 품질 목표 해석 |
+| [k6 실행 가이드](docs/experiments/008-k6-load.md) | 컨테이너 부하 스크립트·설정·결과 해석 |
+| [고객 설명 대본](docs/evidence/008-integrated-incident/8-customer-briefing.md) | 3분 이내 성과 설명 |
+
 ## 2장 기준 재현 가이드
 
 아래는 Windows + Git Bash + Docker Desktop, windows_exporter, Prometheus, Grafana를 사용한 **2장 시점**의 재현 절차다. 3장 이후의 알림·주문 API·로그·트레이스·Mimir 구성은 위 장별 가이드를 따른다.
 
-2장 구성은 `lab/002-windows-metrics` 브랜치에 보관되어 있어 아래 clone 명령도 그 브랜치를 명시한다. 전체 과정의 최신 문서와 설정은 `main`을 기준으로 확인한다. 아래 대시보드의 임계값 색상은 알림 규칙이 아니다.
+2장 구성은 `lab/002-windows-metrics` 브랜치에 보관되어 있어 아래 clone 명령도 그 브랜치를 명시한다. 병합된 공통 문서와 설정은 `main`에서, 진행 중인 실습 결과는 해당 실습 브랜치에서 확인한다. 8장 결과는 `lab/008-integrated-incident`에 기록한다. 아래 대시보드의 임계값 색상은 알림 규칙이 아니다.
 
 ## 데이터 흐름과 접속 주소
 

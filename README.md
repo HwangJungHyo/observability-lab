@@ -53,6 +53,71 @@
 | [k6 실행 가이드](docs/experiments/008-k6-load.md) | 컨테이너 부하 스크립트·설정·결과 해석 |
 | [고객 설명 대본](docs/evidence/008-integrated-incident/8-customer-briefing.md) | 3분 이내 성과 설명 |
 
+## 다음 실습 시작: 기존 환경 다시 켜기
+
+대상: Windows 재시작 또는 컨테이너 중지 후, 기존 컨테이너와 볼륨이 남아 있는 환경. 현재 이어갈 단계는 9장 운영 알림·대응이다.
+
+### 1. Docker Desktop 준비
+
+Docker Desktop을 직접 실행하고 Git Bash에서 확인한다.
+
+```bash
+docker info --format '{{.OSType}}'
+```
+
+`linux`가 나오면 엔진이 준비된 상태다.
+
+### 2. 실습 폴더에서 기존 서비스 시작
+
+```bash
+cd ~/Desktop/git-devops/observability-lab
+bash scripts/mimir-compose.sh start
+```
+
+`start`는 기존 컨테이너를 다시 시작하므로 기존 환경변수·자원 제한·재시작 정책을 유지한다. 이 명령은 k6 부하 테스트를 실행하지 않는다. `.env.mimir`와 `.local/mimir/compose.images.lock.yaml` 등 기존 로컬 구성 파일이 필요하다.
+
+컨테이너를 삭제했거나 `down`을 실행했다면 이 절차만으로 복원되지 않는다. 그때는 적용할 Compose 설정과 자원 제한을 확인한 뒤 `up -d`로 생성해야 한다.
+
+### 3. 실행 상태 확인
+
+```bash
+bash scripts/mimir-compose.sh ps -a
+```
+
+실습 서비스가 `Up`인지 확인한다. `order-api`와 `payment`는 `healthy`가 될 때까지 기다린다. 시작 직후의 `health: starting`은 준비 중이라는 뜻이다. `Up`만으로 모든 기능이 준비됐다고 판단하지 않는다.
+
+### 4. 실제 주문 한 건 확인
+
+```bash
+REQUEST_ID="resume-$(date -u +%Y%m%dT%H%M%SZ)"
+printf 'REQUEST_ID=%s\n' "$REQUEST_ID"
+
+curl -4 -sS --max-time 10 \
+  -X POST http://localhost:18080/orders \
+  -H 'Content-Type: application/json' \
+  -H "X-Request-ID: $REQUEST_ID" \
+  -d '{"amount":10000}' \
+  -w '\nHTTP=%{http_code}\nTOTAL_SECONDS=%{time_total}\n'
+```
+
+정상 기준은 HTTP `201`, 본문의 `status: confirmed`, 주문·결제 ID 존재다. 이전 정상 응답은 약 80~90ms였지만 시작 직후의 단일 요청을 고정 성능 기준으로 사용하지 않는다.
+
+이 확인은 주문→결제 업무 경로의 재개 확인이다. 메트릭·로그·트레이스의 재수집까지 입증하지는 않는다. 9장 준비 점검에서 경보에 필요한 수집·평가·알림 경로를 확인한다.
+
+특정 서비스가 정상으로 올라오지 않으면 해당 서비스 로그만 확인한다. 예를 들어 payment는 다음과 같다.
+
+```bash
+bash scripts/mimir-compose.sh logs --since 5m --tail 100 --no-color payment
+```
+
+### 자동 시작 정책 주의
+
+`docker update --restart=no`를 적용한 기존 컨테이너도 위 `start` 명령으로 수동 실행할 수 있다. 다만 Compose로 재생성하면 YAML의 재시작 정책을 다시 적용한다. 재생성 후에도 자동 시작을 막으려면 해당 Compose 서비스의 `restart: "no"` 설정이 필요하다.
+
+전체 정책 변경 명령의 실행 결과는 아직 확인하지 않았다. 이 README 추가는 컨테이너나 Compose 정책을 변경하지 않는다.
+
+참고: [Docker Compose start 공식 문서](https://docs.docker.com/reference/cli/docker/compose/start/).
+
 ## 2장 기준 재현 가이드
 
 아래는 Windows + Git Bash + Docker Desktop, windows_exporter, Prometheus, Grafana를 사용한 **2장 시점**의 재현 절차다. 3장 이후의 알림·주문 API·로그·트레이스·Mimir 구성은 위 장별 가이드를 따른다.

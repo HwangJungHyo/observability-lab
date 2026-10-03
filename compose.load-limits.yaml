@@ -1,0 +1,10 @@
+# Training limits only; apply after the normal Compose overlays.
+services:
+  order-api:
+    cpus: 0.5
+    mem_limit: 512m
+    memswap_limit: 512m
+  payment:
+    cpus: 0.5
+    mem_limit: 512m
+    memswap_limit: 512m
